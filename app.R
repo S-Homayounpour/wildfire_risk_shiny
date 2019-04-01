@@ -39,8 +39,6 @@ burnblocks <- st_read(here("test_leaflet/data/ACT_Test_Data/ACTBurnBlocks_gt1.sh
 
 locations[, 1] <- stringr::str_trim( sprintf("%12.0f", locations[, 1]) )
 
-meshnlocks <- st_read(here("test_leaflet/data/ACT_meshBlocks/MB_2016_ACT.shp"))
-
 ignitionprob <- raster(here("test_leaflet/data/act_rasters/ignition/act_igden_n2/hdr.adf"))
 
 ign_vals <- raster::extract(ignitionprob,locations[,c(2,3)],method = "bilinear")
@@ -491,6 +489,11 @@ observeEvent(input$next_step_0,{
   updateTabsetPanel(session, "inTabset",
                     selected = "gen_lines")
 })
+
+##making a dependecy between line plot and generate lines button
+points_clicked_by <- eventReactive(input$show_lines,{loc_points()})
+lines_clicked_by <- eventReactive(input$show_lines,{risk.lines_sf()})
+
 observeEvent(input$show_lines,{
   output$gen_lines_map <- renderLeaflet({
   pal <- pal_lines()
@@ -501,54 +504,15 @@ observeEvent(input$show_lines,{
                  lat1 =-34.5,
                  lng2 = 150,
                  lat2 = -37) %>% 
-  addCircleMarkers(data = loc_points(),radius = 1, fillColor = "red",color = "red", fillOpacity =  0.4) %>%
-  addPolylines(data = risk.lines_sf(),fillColor = ~pal(pobs),
+  addCircleMarkers(data = points_clicked_by(),radius = 1, fillColor = "red",color = "red", fillOpacity =  0.4) %>%
+  addPolylines(data = lines_clicked_by(),fillColor = ~pal(pobs),
                  color = ~pal(pobs),fillOpacity = 1,weight = 2) %>%
-    addLegend(data = risk.lines_sf(),"bottomright", pal = pal,
+    addLegend(data = lines_clicked_by(),"bottomright", pal = pal,
               values = ~pobs,title = "Fire probability",opacity = 1 )
 
 })
 }) 
 
-pal_lines_2 <- reactive({ 
-palette_rev <- rev(RColorBrewer::brewer.pal(name= "RdYlGn",n = 5))
-pal <- colorNumeric(
-  palette = palette_rev,
-  domain = risk.loc()$pobs_mean)
-})
-
-intrsc_col <- reactive({
-  colorNumeric(palette = "RdPu",domain = risk.block()$nlines)
-})
-
-getcols <- reactive({
-  
-      dat <- sapply(ignition.loc()$layer_mean, function(layer_mean){
-      
-        if(layer_mean <= 0.2) {
-          "green"
-        } else if(layer_mean <= 0.3) {
-          "orange"
-        } else {
-          "red"
-        }
-        })
-      dat
-  })
-
-observe({
-  print(loc_points())
-})
-
-icons <- reactive({
-    
-  awesomeIcons(
-  icon = 'flame',
-  iconColor = 'black',
-  library = 'ion',
-  markerColor = getcols()
-)
-})
 
 observeEvent(input$next_step_2,{
   
@@ -556,11 +520,32 @@ observeEvent(input$next_step_2,{
                     selected = "treat_blocks")
 })
 
+
+## making a dependency to plot risk block data to show ignition 
+risk_loc_clicked_by <-  eventReactive(input$show_ignition,{
+risk.loc()  
+})
+
+risk_block_clicked_by <-  eventReactive(input$show_ignition,{
+  risk.block()
+})
+pal_lines_2 <- reactive({ 
+  palette_rev <- rev(RColorBrewer::brewer.pal(name= "RdYlGn",n = 5))
+  pal <- colorNumeric(
+    palette = palette_rev,
+    domain = risk_loc_clicked_by()$pobs_mean)
+})
+
+intrsc_col <- reactive({
+  colorNumeric(palette = "RdPu",domain = risk_block_clicked_by()$nlines)
+})
+
 observeEvent(input$show_ignition,{
 
  output$ignition_map <- renderLeaflet({
    intrsc_col <- intrsc_col()
    pal_1 <- pal_lines_2()
+   
     leaflet(options = leafletOptions(minZoom =  9  , maxZoom =  20,doubleClickZoom= FALSE)) %>% 
       addProviderTiles(provider = "Esri.WorldGrayCanvas") %>% 
       setView(149,-35.5,zoom = 9) %>% 
@@ -568,19 +553,19 @@ observeEvent(input$show_ignition,{
                    lat1 =-34.5,
                    lng2 = 150,
                    lat2 = -37) %>% 
-    addPolygons(data = risk.block(),color = "#3182bd",stroke = TRUE,
+    addPolygons(data = risk_block_clicked_by(),color = "#3182bd",stroke = TRUE,
                 fillColor = ~intrsc_col(nlines),opacity =0.5,smoothFactor = 0.1,
                 fillOpacity = 1, weight = 1) %>%
-    addLegend(data = risk.block(),"bottomright", pal = intrsc_col, values = ~nlines,
+    addLegend(data = risk_block_clicked_by(),"bottomright", pal = intrsc_col, values = ~nlines,
               title = "Number of intersected lines",
               opacity = 1 ) %>%
-    addCircles(data = risk.loc(),color = ~pal_1(pobs_mean),fillColor = ~pal_1(pobs_mean),
+    addCircles(data = risk_loc_clicked_by(),color = ~pal_1(pobs_mean),fillColor = ~pal_1(pobs_mean),
                radius = 100,
                fillOpacity = 1,opacity = 1,
                label = ~as.character(paste("Expected probability of",
                                            paste(locationid,"th census block receiving fire is",sep=""),
                                            round(pobs_mean,4)))) %>%
-    addLegend(data = risk.loc(),"topleft", pal = pal_1, values = ~pobs_mean,
+    addLegend(data = risk_loc_clicked_by(),"topleft", pal = pal_1, values = ~pobs_mean,
               title = "probability",opacity = 1) 
   
 })
@@ -592,6 +577,35 @@ observeEvent(input$next_step_1,{
   updateTabsetPanel(session, "inTabset",
                     selected = "ignition_dist")
   })
+
+ignition_loc_clicked_by <- eventReactive(input$show_dist,{
+  ignition.loc()
+})
+  
+getcols <- reactive({
+  
+  dat <- sapply(ignition_loc_clicked_by()$layer_mean, function(layer_mean){
+    
+    if(layer_mean <= 0.2) {
+      "green"
+    } else if(layer_mean <= 0.3) {
+      "orange"
+    } else {
+      "red"
+    }
+  })
+  dat
+})
+
+icons <- reactive({
+  
+  awesomeIcons(
+    icon = 'flame',
+    iconColor = 'black',
+    library = 'ion',
+    markerColor = getcols()
+  )
+})
 
 observeEvent(input$show_dist,{
  
@@ -606,7 +620,7 @@ observeEvent(input$show_dist,{
                                                        lat2 = -37) %>% 
     addHeatmap(data = ign_vals_df,intensity = ~ign_vals,
                blur = 10, max = 0.2, radius = 10 ) %>% 
-    addAwesomeMarkers(data = ignition.loc(), icon = icons,
+    addAwesomeMarkers(data = ignition_loc_clicked_by(), icon = icons,
                       label = ~as.character(paste("Mean probability of ignition in this grid cell is ",
                                             round(layer_mean,4))))
 })
@@ -633,15 +647,15 @@ observeEvent(input$next_step_3,{
                    lat1 =-34.5,
                    lng2 = 150,
                    lat2 = -37) %>% 
-      addPolygons(data = risk.block(),color = "#3182bd",stroke = TRUE,
+      addPolygons(data = risk_block_clicked_by(),color = "#3182bd",stroke = TRUE,
                   fillColor = ~intrsc_col(nlines),opacity =0.5,smoothFactor = 0.1,
                   fillOpacity = 1, weight = 1,layerId = ~id,
                   label = ~as.character(id),
                   labelOptions = labelOptions(direction = 'top')) %>%
-      addLegend(data = risk.block(),"bottomright", pal = intrsc_col, values = ~nlines,
+      addLegend(data = risk_block_clicked_by(),"bottomright", pal = intrsc_col, values = ~nlines,
                 title = "Number of intersected lines",
                 opacity = 1 ) %>%
-      addCircles(data = risk.loc(),color = ~pal_1(pobs_mean),fillColor = ~pal_1(pobs_mean),
+      addCircles(data = risk_loc_clicked_by(),color = ~pal_1(pobs_mean),fillColor = ~pal_1(pobs_mean),
                  radius = 100,
                  fillOpacity = 1,opacity = 1,
                  label = ~as.character(paste("Expected probability of",
