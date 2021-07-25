@@ -26,10 +26,12 @@ library(ggplot2)
 library(WildfireRisk)
 library(RSQLite)
 library(DT)
+#,warn=0, shiny.error=recover
+options(shiny.fullstacktrace=TRUE,shiny.reactlog=TRUE)
 source("treat_blocks_lines_output.R",local = TRUE)
 #global variable
 ### These are the required objects for running the shint  
-tsf <- raster( here("test_leaflet/data/act_rasters/actplus_tsf17/hdr.adf") )
+tsf <- raster(here("test_leaflet/data/act_rasters/actplus_tsf17/hdr.adf"))
 
 locations <- read.csv( here("test_leaflet/data/ACT_Test_Data/act_cens11_centres.CSV") )
 
@@ -243,8 +245,9 @@ loc_points_id <- eventReactive(input$stop_selecting,{
          unique(selected_longlat$id)
 })
 
-observe(
+observeEvent(input$stop_selecting,{
   print(loc_points_id())
+}
 )
 # setting reactiveValues of Dclckd to null
 # when the stop_selecting button is selected 
@@ -276,6 +279,15 @@ lines <- eventReactive(input$stop_selecting,{
 
 })
 
+
+reactive({
+  print(lines())
+})
+
+
+reactive({
+print(risk.lines())
+})
 ## genereate lines and assign risks to the lines
 # risk.lines <- eventReactive(input$show_lines,{
 #   calculate_risk(lines(), tsf, forest, sample.spacing = 100)
@@ -359,10 +371,23 @@ treatedblocks <- reactive({
  st_transform(a,crs = 28355)
 })
 
+# observe(
+#   print("Treated blocks are"),
+#   print(treatedblocks())
+#   )
+
 ## calculating risk lines after treating blocks
 treated_risk_line <- reactive({
   a <- do_treat_blocks_line(treatedblocks(),risk.lines())
   a
+  })
+
+eventReactive(input$stop_selecting_poliges,{
+  print("treated blocks are")
+  print(treatedblocks())
+  print("risk lines are")
+  print(risk.lines())
+
   })
 
 ## summary of risk for each locations after treatment
@@ -416,12 +441,12 @@ x <- reactive({
 
 
 
-observe({
-  print("selected pols ")
-  print(x())
-  str(nms())
-  str(x())
-})
+# observe({
+#   print("selected pols ")
+#   print(x())
+#   str(nms())
+#   str(x())
+# })
 
 
 

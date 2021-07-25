@@ -12,9 +12,10 @@ do_treat_blocks_line <- function(block.risk, line.risk) {
   
   # get indices of intersecting scan lines for each block
   intersections <- lines_in_blocks(block.risk, line.risk, by = "block")
-  # the inition data
+  # the ignition data
   initials <-line.risk
-  
+  print("initial line risks are")
+  print(initials)
   # reduce line.risk to a plain data frame with IDs and the variables
   # needed for risk calculation
   line.risk <- line.risk %>%
@@ -41,9 +42,10 @@ do_treat_blocks_line <- function(block.risk, line.risk) {
   pb <- txtProgressBar(0, length(blocks.with.lines), style = 3)
   treated_lines <- data.frame()
   
-  
+
   
   for (iblock in blocks.with.lines) {
+
     ii <- intersections[[iblock]]
     
     pdat <- line.risk[ii, ] %>%
@@ -82,7 +84,7 @@ do_treat_blocks_line <- function(block.risk, line.risk) {
     print(ldat)  
     treated_lines <- rbind(treated_lines,ldat)
     }
-    
+ 
     k <- k + 1
     setTxtProgressBar(pb, k)
   }
@@ -94,17 +96,19 @@ do_treat_blocks_line <- function(block.risk, line.risk) {
   names(treated_lines)[3] <- "tsf_mean"
   print(treated_lines)
   trimmed <-  initials %>%  select(locationid,lineid)
-  result <- rbind(as.data.frame(initials)[,-9],treated_lines)%>%
+  result <- rbind(as.data.frame(initials) %>% select(-geometry),treated_lines)%>%
     inner_join(trimmed,by = c("locationid","lineid")) %>% 
     group_by(locationid,lineid) %>% 
     filter(pobs == min(pobs)) %>% 
     ungroup() %>% 
     distinct(locationid,lineid,.keep_all = TRUE)
+  print("result is")
+  print(result)
   result
   }
 
 ### noDB is modified version of summarize_location_risk
-## that ignore risk class attrubutes of line
+## that ignore risk class attributes of line
 summarize_location_risk_noDB <- function(line.risk, quantiles = c(0.25, 0.75)) {
   
   
